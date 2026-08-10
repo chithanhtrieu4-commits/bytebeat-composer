@@ -689,7 +689,7 @@ function databaseToFiles() {
 	$fileName = $pathLibrary . 'recent.gz';
 	makeLibraryFile($fileName, $songsByHash, mysqli_query($dbLink,
 		'SELECT `hash`, `author` FROM songs
-		WHERE `date_added` IS NOT NULL
+		WHERE `date_added` > DATE_SUB(CURDATE(), INTERVAL 90 DAY)
 		ORDER BY `author`, `date`, `id`;'));
 
 	// Library file with c-compatible songs
