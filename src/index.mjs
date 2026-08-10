@@ -612,40 +612,51 @@ globalThis.bytebeat = new class {
 		}
 		document.documentElement.dataset.theme = this.settings.themeStyle = value;
 		document.documentElement.dataset.themeType = value.endsWith('Light') ? 'light' : 'dark';
-		let colorCursor, colorDiagram;
+		let colorCursor = '#80c0ff';
+		let colorDiagram = '#0080ff';
 		let colorStereo = 1; // Red=0, Green=1, Blue=2
+		let { codeStyle } = this.defaultSettings;
 		switch(value) {
+		case 'Blue Dark': codeStyle = 'Github Dark'; break;
 		case 'Cake Dark':
 			colorCursor = '#40ffff';
 			colorDiagram = '#c000c0';
 			colorStereo = 0;
+			codeStyle = 'Monokai';
 			break;
+		case 'Dusk Dark': codeStyle = 'One Dark'; break;
 		case 'Green Dark':
 			colorCursor = '#00ffa8';
 			colorDiagram = '#00a080';
+			codeStyle = 'Retro Green';
 			break;
 		case 'Orange Dark':
 			colorCursor = '#ffff80';
 			colorDiagram = '#8000ff';
 			colorStereo = 0;
+			codeStyle = 'Github v2 Dark';
 			break;
 		case 'Purple Dark':
 			colorCursor = '#ff50ff';
 			colorDiagram = '#a040ff';
 			colorStereo = 0;
+			codeStyle = 'Atom Dark';
 			break;
 		case 'Teal Dark':
 			colorCursor = '#80c0ff';
 			colorDiagram = '#00a0c0';
+			codeStyle = 'VSCode Dark';
 			break;
-		default: // Blue Dark, Dusk Dark, Default Dark, Default Light
-			colorCursor = '#80c0ff';
-			colorDiagram = '#0080ff';
+		case 'Default Light': codeStyle = 'Atom Light'; break;
+		case 'Blue Light': codeStyle = 'Github Light'; break;
+		case 'Green Light': codeStyle = 'VSCode Light'; break;
 		}
 		this.setColorTimeCursor(colorCursor);
 		this.setColorStereo(colorStereo);
 		ui.controlColorWaveformInfo.innerHTML = scope.getColorTest('colorWaveform');
 		this.setColorDiagram(ui.controlColorDiagram.value = colorDiagram); // Contains this.saveSettings();
+		this.setCodeStyle(codeStyle);
+		ui.controlCodeStyle.value = codeStyle;
 	}
 	setVolume(isInit) {
 		let volumeValue = NaN;
