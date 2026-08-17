@@ -1,12 +1,14 @@
 <?php
+// Uncomment to show debugging errors
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Session initialization
-ini_set('session.gc_maxlifetime', 2592000); // 30 days
-session_set_cookie_params(2592000); // store session cookie for 30 days
+// Store session cookie for 30 days
+ini_set('session.gc_maxlifetime', 2592000); 
+session_set_cookie_params(2592000); 
 session_start();
-setcookie(session_name(), session_id(), ['expires' => time() + 2592000, 'samesite' => 'Strict']);
+setcookie(session_name(), session_id(), time() + 2592000);
+
 ob_implicit_flush();
 if (function_exists('ob_get_level')) {
 	while (ob_get_level() > 0) {
@@ -16,45 +18,75 @@ if (function_exists('ob_get_level')) {
 
 /* ==[ Functions ]========================================================================================= */
 
-// Displaying messages
-function fancyDie($message) {
+// Page display
+function fancyDie(string $message): void {
+	$referer = isset($_SERVER['HTTP_REFERER']) ? htmlspecialchars($_SERVER['HTTP_REFERER']) : '';
+	header('Content-Type: text/html; charset=utf-8');
 	die('<!DOCTYPE html>
-
-<html>
+<html lang="en">
 <head>
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Bytebeat management</title>
-	<link rel="canonical" href="https://dollchan.net/bytebeat/">
 	<link rel="shortcut icon" href="favicon.png">
-	<link rel="stylesheet" type="text/css" href="style.css?version=2026081000">
+	<link rel="stylesheet" type="text/css" href="style.css?version=2026081500">
+	<script src="./build/theme.js?version=2026081500"></script>
 </head>
-<body style="text-align: center;">
-	<div style="display: inline-block; padding: 8px 0;">
+<body>
+	<main class="wrapper">
+		<h1 class="page-title">Bytebeat management</h1>
+		<hr>
 		' . $message . '
-	</div>
-	<br>
-	<hr>
-	[<a href="https://github.com/SthephanShinkufag/bytebeat-composer/wiki/Library-moderation-instructions">Instructions</a>]
-	[<a href="./">Go to player</a>]
-	[<a href="javascript: window.history.go(-1);">Return</a>]
+		<hr>
+		<div class="panel-navigation">
+			<a class="link-button" href="https://github.com/SthephanShinkufag/bytebeat-composer/wiki/Library-moderation-instructions">Instructions</a>
+			<a class="link-button" href="./">Go to player</a>
+			<a class="link-button" href="' .
+				($referer ?: 'javascript:history.back();') . '" title="Return to board">Return</a>
+		</div>
+	</main>
 </body>
 </html>');
 }
 
+// Info message
+function manageInfo(string $text): string {
+	return '<div class="manage-info">' . $text . '</div>';
+}
+
+// Error message
+function manageError(string $text): string {
+	return '<div class="manage-error">' . $text . '</div>';
+}
+
+// Management panel
+function managementRequest(): string {
+	return '<h2>Select an action</h2>
+		<div class="form-container">
+			<a href="?addsong_request" class="link-button form-submit">Add a song</a>' .
+			(!BYTEBEAT_DBMAKE ? '' : '
+			<a href="?files_to_db" class="link-button form-submit" onclick="return confirm(\'Are you sure to copy songs from library files into the database?\')">Make database</a>') . '
+			<a href="?db_to_files" class="link-button form-submit">Make library files</a>
+			<a href="?logout" class="link-button form-submit">Logout</a>
+		</div>';
+}
+
 // Login form
-function showLoginPage() {
-	return '<fieldset>
-			<legend align="center">Enter an administrator password</legend>
-			<form name="form_login" method="post" action="?manage">
-				<input type="password" name="managepassword">
-				<input type="submit" value="Log In">
-			</form>
-		</fieldset>';
+function showLoginPage(): string {
+	return '<h2>Login</h2>
+		<form name="form_login" method="post" action="?manage">
+			<div class="form-container">
+				<div class="form-row">
+					<div class="form-row-label">Password:</div>
+					<input type="password" name="managepassword">
+				</div>
+				<input type="submit" class="link-button form-submit" value="Log In">
+			</div>
+		</form>';
 }
 
 // Logout
-function logoutRequest() {
+function logoutRequest(): void {
 	setcookie('bytebeat_access', '', time() - 3600, '/');
 	unset($_COOKIE['atom_access']);
 	$_SESSION['bytebeat'] = '';
@@ -62,116 +94,100 @@ function logoutRequest() {
 	die('<meta http-equiv="refresh" content="0;url=' . basename($_SERVER['PHP_SELF']) . '?manage">');
 }
 
-// Management panel
-function managementRequest() {
-	return '<fieldset style="display: flex; flex-direction: column;gap: 4px;">
-			<legend align="center">Select an action to manage the library</legend>
-			<a href="?addsong_request" class="control-button">Add a song</a>' .
-			(!BYTEBEAT_DBMAKE ? '' : '
-			<a href="?files_to_db" class="control-button" onclick="return confirm(\'Are you sure to copy songs from library files into the database?\')">Make database</a>') . '
-			<a href="?db_to_files" class="control-button">Make library files</a>
-			<a href="?logout" class="control-button">Logout</a>
-		</fieldset>';
-}
-
 // Generating the form for adding/editing a song to the database
-function addSongForm() {
-	return '<fieldset>
-			<legend align="center">Adding a song</legend>
-			<form name="form_addsong" method="post" action="?addsong">
-				<table class="table-form"><tbody>
-					<tr>
-						<th>Author, date</th>
-						<td>
-							<input type="text" name="author">
-							<input type="date" name="date" placeholder="yyyy-mm-dd">
-						</td>
-					</tr>
-					<tr>
-						<th>Name</th>
-						<td><input type="text" name="name"></td>
-					</tr>
-					<tr>
-						<th>URL</th>
-						<td class="table-form-added"><div>
-							<input type="text" name="url[]" placeholder="URL">
-							<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more sources.">+</button>
-						</div></td>
-					</tr>
-					<tr>
-						<th>Description</th>
-						<td><textarea name="description"></textarea></td>
-					</tr>
-					<tr>
-						<th>Mode</th>
-						<td>
-							<select name="mode">
-								<option value="Bytebeat">Bytebeat</option>
-								<option value="Signed Bytebeat">Signed Bytebeat</option>
-								<option value="Floatbeat">Floatbeat</option>
-								<option value="Funcbeat">Funcbeat</option>
-							</select>
-							<input type="text" name="samplerate" placeholder="Sample rate (Hz)">
-							<label style="white-space: nowrap;"><input type="checkbox" name="stereo"> Stereo</label>
-						</td>
-					</tr>
-					<tr>
-						<th>Remix source</th>
-						<td class="table-form-added"><div>
-							<input type="text" name="remix[]" placeholder="Remix source song hash">
-							<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more sources.">+</button>
-						</div></td>
-					</tr>
-					<tr>
-						<th>Cover source</th>
-						<td>
-							<input type="text" name="cover_name" placeholder="Cover source name">
-							<input type="text" name="cover_url" placeholder="Cover source URL">
-						</td>
-					</tr>
-					<tr>
-						<th>Original code</th>
-						<td><textarea name="code"></textarea></td>
-					</tr>
-					<tr>
-						<th>Minified code</th>
-						<td><textarea name="code_minified"></textarea></td>
-					</tr>
-					<tr>
-						<th>Formatted code</th>
-						<td><textarea name="code_formatted"></textarea></td>
-					</tr>
-					<tr>
-						<th>Draw mode/scale</th>
-						<td style="display: flex; gap: 4px;">
-							<select name="drawing_mode">
-								<option value="">None</option>
-								<option value="Points">Points</option>
-								<option value="Waveform">Waveform</option>
-								<option value="Diagram">Diagram</option>
-								<option value="Combined">Combined</option>
-							</select>
-							<input type="text" name="drawing_scale" placeholder="1=1/2, 2=1/4, 3=1/8 ...">
-						</td>
-					</tr>
-					<tr>
-						<th>Tags</th>
-						<td class="table-form-added"><div>
-							<input type="text" name="tags[]" placeholder="Tag">
-							<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more sources.">+</button>
-						</div></td>
-					</tr>
-					<tr><td><input type="submit" value="Submit"></td><td></td></tr>
-				</tbody></table>
-			</form>
-		</fieldset>';
+function addSongForm(): string {
+	return '<h2>Adding a song</h2>
+		<form name="form_addsong" method="post" action="?addsong">
+			<div class="form-container">
+				<div class="form-row">
+					<div class="form-row-label">Author, date:</div>
+					<div class="form-row-added">
+						<input type="text" name="author" placeholder="Author">
+						<input type="date" name="date" placeholder="yyyy-mm-dd">
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Song name:</div>
+					<input type="text" name="name" placeholder="Name">
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">URLs:</div>
+					<div class="form-row-added">
+						<input type="text" name="url[]" placeholder="URL">
+						<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more URLs">+</button>
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Description:</div>
+					<textarea name="description" rows="3"></textarea>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Mode:</div>
+					<div class="form-row-added">
+						<select name="mode">
+							<option value="Bytebeat">Bytebeat</option>
+							<option value="Signed Bytebeat">Signed Bytebeat</option>
+							<option value="Floatbeat">Floatbeat</option>
+							<option value="Funcbeat">Funcbeat</option>
+						</select>
+						<input type="text" name="samplerate" placeholder="Sample rate (Hz)">
+						<label style="white-space: nowrap;"><input type="checkbox" name="stereo"> Stereo</label>
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Remix sources:</div>
+					<div class="form-row-added">
+						<input type="text" name="remix[]" placeholder="Remix source song hash">
+						<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more hashes">+</button>
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Cover source:</div>
+					<input type="text" name="cover_name" placeholder="Cover source name">
+					<input type="text" name="cover_url" placeholder="Cover source URL">
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Original code:</div>
+					<textarea name="code" rows="5"></textarea>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Minified code:</div>
+					<textarea name="code_minified" rows="5"></textarea>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Formatted code:</div>
+					<textarea name="code_formatted" rows="5"></textarea>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Draw mode and scale:</div>
+					<div class="form-row-added">
+						<select name="drawing_mode">
+							<option value="">None</option>
+							<option value="Points">Points</option>
+							<option value="Waveform">Waveform</option>
+							<option value="Diagram">Diagram</option>
+							<option value="Combined">Combined</option>
+						</select>
+						<input type="text" name="drawing_scale" placeholder="1=1/2, 2=1/4, 3=1/8 ...">
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Tags:</div>
+					<div class="form-row-added">
+						<input type="text" name="tags[]" placeholder="Tag">
+						<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more tags">+</button>
+					</div>
+				</div>
+				<input type="submit" class="link-button form-submit" value="Submit">
+			</div>
+		</form>';
 }
 
 // Generating the form to edit a song in the database
-function editSongForm() {
+function editSongForm(): string {
 	$dbLink = getDBLink();
 	if (!isset($_GET['hash'])) {
-		return 'Song with hash = "" not found!';
+		return manageError('Song with hash = "" not found!');
 	}
 	$hash = $_GET['hash'];
 
@@ -180,7 +196,7 @@ function editSongForm() {
 		'SELECT * FROM `songs`
 		WHERE `hash` = "' . $hash . '" LIMIT 1;');
 	if (mysqli_num_rows($songs) === 0) {
-		return 'Song with hash = "' . $hash . '" not found!';
+		return manageError('Song with hash = "' . $hash . '" not found!');
 	}
 	while ($song = mysqli_fetch_assoc($songs)) {
 		// Make URL fields
@@ -190,17 +206,17 @@ function editSongForm() {
 			$urlArr = json_decode($url);
 			if (json_last_error() === JSON_ERROR_NONE && is_array($urlArr)) {
 				foreach ($urlArr as $url_) {
-					$urlStr .= '<div>
-							<input type="text" name="url[]" placeholder="URL" value="' . $url_ . '">
-							<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more sources.">+</button>
-						</div>';
+					$urlStr .= '<div class="form-row-added">
+						<input type="text" name="url[]" placeholder="URL" value="' . $url_ . '">
+						<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more URLs">+</button>
+					</div>';
 				}
 			}
 		} else {
-			$urlStr .= '<div>
-							<input type="text" name="url[]" placeholder="URL" value="' . $url . '">
-							<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more sources.">+</button>
-						</div>';
+			$urlStr .= '<div class="form-row-added">
+						<input type="text" name="url[]" placeholder="URL" value="' . $url . '">
+						<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more URLs">+</button>
+					</div>';
 		}
 
 		// Make tags fields
@@ -208,10 +224,10 @@ function editSongForm() {
 		$tags = json_decode($song['tags']);
 		if (json_last_error() === JSON_ERROR_NONE && is_array($tags)) {
 			foreach ($tags as $tag) {
-				$tagsStr .= '<div>
-							<input type="text" name="tags[]" placeholder="Tag" value="' . $tag . '">
-							<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more sources.">+</button>
-						</div>';
+				$tagsStr .= '<div class="form-row-added">
+						<input type="text" name="tags[]" placeholder="Tag" value="' . $tag . '">
+						<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more tags">+</button>
+					</div>';
 			}
 		}
 
@@ -222,17 +238,17 @@ function editSongForm() {
 			WHERE `song` = "' . $hash . '";');
 		if (mysqli_num_rows($remixResult) !== 0) {
 			while ($remixSource = mysqli_fetch_assoc($remixResult)) {
-				$remixStr .= '<div>
-							<input type="text" name="remix[]" placeholder="Remix source song hash" value="' .
-								$remixSource['source'] . '">
-							<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more sources.">+</button>
-						</div>';
+				$remixStr .= '<div class="form-row-added">
+						<input type="text" name="remix[]" placeholder="Remix source song hash" value="' .
+							$remixSource['source'] . '">
+						<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more hashes">+</button>
+					</div>';
 			}
 		} else {
-			$remixStr = '<div>
-							<input type="text" name="remix[]" placeholder="Remix source song hash">
-							<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more sources.">+</button>
-						</div>';
+			$remixStr = '<div class="form-row-added">
+						<input type="text" name="remix[]" placeholder="Remix source song hash">
+						<button onclick="this.parentNode.insertAdjacentHTML(\'afterend\', this.parentNode.outerHTML); event.preventDefault();" title="Click to add more hashes">+</button>
+					</div>';
 		}
 
 		// Parsing the drawing mode
@@ -246,129 +262,131 @@ function editSongForm() {
 		}
 
 		// Form generation
-		return '<fieldset>
-			<legend align="center">Editing a song</legend>
-			<form name="form_editsong" method="post" action="?editsong">
-				<table class="table-form"><tbody>
-					<tr>
-						<th>Hash</th>
-						<td><input type="text" name="hash" value="' . $hash . '" readonly></td>
-					</tr>
-					<tr>
-						<th>Author, date</th>
-						<td>
-							<input type="text" name="author" value="' .
-								(isset($song['author']) ? htmlspecialchars($song['author']) : '') . '">
-							<input type="date" name="date" placeholder="yyyy-mm-dd" value="' .
-								$song['date'] . '">
-						</td>
-					</tr>
-					<tr>
-						<th>Name</th>
-						<td><input type="text" name="name" value="' .
-							(isset($song['name']) ? htmlspecialchars($song['name']) : '') . '"></td>
-					</tr>
-					<tr>
-						<th>URL</th>
-						<td class="table-form-added">' . $urlStr . '</td>
-					</tr>
-					<tr>
-						<th>Description</th>
-						<td><textarea name="description">' .
-							(isset($song['description']) ? htmlspecialchars($song['description']) : '') .
-							'</textarea></td>
-					</tr>
-					<tr>
-						<th>Mode</th>
-						<td>
-							<select name="mode">
-								<option value="Bytebeat"' .
-									($song['mode'] === 'Bytebeat' ? ' selected' : '') . '>Bytebeat</option>
-								<option value="Signed Bytebeat"' .
-									($song['mode'] === 'Signed Bytebeat' ? ' selected' : '') .
-									'>Signed Bytebeat</option>
-								<option value="Floatbeat"' .
-									($song['mode'] === 'Floatbeat' ? ' selected' : '') . '>Floatbeat</option>
-								<option value="Funcbeat"' .
-									($song['mode'] === 'Funcbeat' ? ' selected' : '') . '>Funcbeat</option>
-							</select>
-							<input type="text" name="samplerate" value="' .
-								$song['samplerate'] . '" placeholder="Sample rate (Hz)">
-							<label style="white-space: nowrap;"><input type="checkbox" name="stereo"' .
-								($song['stereo'] ? ' checked' : '') . '> Stereo</label>
-						</td>
-					</tr>
-					<tr>
-						<th>Remix source</th>
-						<td class="table-form-added">' . $remixStr .  '</td>
-					</tr>
-					<tr>
-						<th>Cover source</th>
-						<td>
-							<input type="text" name="cover_name" value="' .
-								(isset($song['cover_name']) ? htmlspecialchars($song['cover_name']) : '') .
-								'" placeholder="Cover source name">
-							<input type="text" name="cover_url" value="' .
-								$song['cover_url'] . '" placeholder="Cover source URL">
-						</td>
-					</tr>
-					<tr>
-						<th>Original code</th>
-						<td><textarea name="code">' . $song['code'] . '</textarea></td>
-					</tr>
-					<tr>
-						<th>Minified code</th>
-						<td><textarea name="code_minified">' . $song['code_minified'] . '</textarea></td>
-					</tr>
-					<tr>
-						<th>Formatted code</th>
-						<td><textarea name="code_formatted">' . $song['code_formatted'] . '</textarea></td>
-					</tr>
-					<tr>
-						<th>Draw mode/scale</th>
-						<td>
-							<select name="drawing_mode">
-								<option value=""' . ($drawing_mode ? ' selected' : '') . '>None</option>
-								<option value="Points"' .
-									($drawing_mode === 'Points' ? ' selected' : '') . '>Points</option>
-								<option value="Waveform"' .
-									($drawing_mode === 'Waveform' ? ' selected' : '') . '>Waveform</option>
-								<option value="Diagram"' .
-									($drawing_mode === 'Diagram' ? ' selected' : '') . '>Diagram</option>
-								<option value="Combined"' .
-									($drawing_mode === 'Combined' ? ' selected' : '') . '>Combined</option>
-							</select>
-							<input type="text" name="drawing_scale" placeholder="1=1/2, 2=1/4, 3=1/8, ..." value="' .
-								(isset($drawing_scale) ? $drawing_scale : '' ) . '">
-						</td>
-					</tr>
-					<tr>
-						<th>Tags</th>
-						<td class="table-form-added">' . $tagsStr .'</td>
-					</tr>
-				</tbody></table>
-				<input type="submit" value="Submit changes" style="float: left; margin: 2px;">
-			</form>
-			<form name="form_deletesong" method="post" action="?deletesong">
-				<input type="hidden" name="hash" value="' . $hash . '">
-				<input type="submit" value="Delete song" style="float: left; margin: 2px;" onclick="return confirm(\'Are you sure to delete this song?\')">
-			</form>
-		</fieldset>';
+		return '<h2>Editing a song</h2>
+		<form name="form_editsong" method="post" action="?editsong">
+			<div class="form-container">
+				<div class="form-row">
+					<div class="form-row-label">Hash</div>
+					<input type="text" name="hash" value="' . $hash . '" readonly>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Author, date</div>
+					<div class="form-row-added">
+						<input type="text" name="author" value="' .
+							(isset($song['author']) ? htmlspecialchars($song['author']) : '') . '">
+						<input type="date" name="date" placeholder="yyyy-mm-dd" value="' . $song['date'] . '">
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Name</div>
+					<input type="text" name="name" value="' .
+						(isset($song['name']) ? htmlspecialchars($song['name']) : '') . '">
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">URLs</div>
+					' . $urlStr . '
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Description</div>
+					<textarea name="description" rows="3">' .
+						(isset($song['description']) ? htmlspecialchars($song['description']) : '') .
+						'</textarea>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Mode</div>
+					<div class="form-row-added">
+						<select name="mode">
+							<option value="Bytebeat"' .
+								($song['mode'] === 'Bytebeat' ? ' selected' : '') . '>Bytebeat</option>
+							<option value="Signed Bytebeat"' .
+								($song['mode'] === 'Signed Bytebeat' ? ' selected' : '') .
+								'>Signed Bytebeat</option>
+							<option value="Floatbeat"' .
+								($song['mode'] === 'Floatbeat' ? ' selected' : '') . '>Floatbeat</option>
+							<option value="Funcbeat"' .
+								($song['mode'] === 'Funcbeat' ? ' selected' : '') . '>Funcbeat</option>
+						</select>
+						<input type="text" name="samplerate" value="' .
+							$song['samplerate'] . '" placeholder="Sample rate (Hz)">
+						<label style="white-space: nowrap;"><input type="checkbox" name="stereo"' .
+							($song['stereo'] ? ' checked' : '') . '> Stereo</label>
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Remix sources</div>
+					' . $remixStr .  '
+				</div>
+				<div class="form-row">
+				<div class="form-row-label">Cover source</div>
+					<input type="text" name="cover_name" value="' .
+						(isset($song['cover_name']) ? htmlspecialchars($song['cover_name']) : '') .
+						'" placeholder="Cover source name">
+					<input type="text" name="cover_url" value="' .
+						$song['cover_url'] . '" placeholder="Cover source URL">
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Original code</div>
+					<textarea name="code" rows="5">' . $song['code'] . '</textarea>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Minified code</div>
+					<textarea name="code_minified" rows="5">' . $song['code_minified'] . '</textarea>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Formatted code</div>
+					<textarea name="code_formatted" rows="5">' . $song['code_formatted'] . '</textarea>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Draw mode/scale</div>
+					<div class="form-row-added">
+						<select name="drawing_mode">
+							<option value=""' . ($drawing_mode ? ' selected' : '') . '>None</option>
+							<option value="Points"' .
+								($drawing_mode === 'Points' ? ' selected' : '') . '>Points</option>
+							<option value="Waveform"' .
+								($drawing_mode === 'Waveform' ? ' selected' : '') . '>Waveform</option>
+							<option value="Diagram"' .
+								($drawing_mode === 'Diagram' ? ' selected' : '') . '>Diagram</option>
+							<option value="Combined"' .
+								($drawing_mode === 'Combined' ? ' selected' : '') . '>Combined</option>
+						</select>
+						<input type="text" name="drawing_scale" placeholder="1=1/2, 2=1/4, 3=1/8, ..." value="' .
+							(isset($drawing_scale) ? $drawing_scale : '' ) . '">
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="form-row-label">Tags</div>
+					' . $tagsStr .'
+				</div>
+				<input type="submit" class="link-button form-submit" value="Submit changes">
+			</div>
+		</form>
+		<hr>
+		<h2>Deleting a song</h2>
+		<form name="form_deletesong" method="post" action="?deletesong">
+			<input type="hidden" name="hash" value="' . $hash . '">
+			<div class="form-container">
+				<div class="form-row">
+					<input type="submit" class="link-button form-submit" value="Delete song" onclick="return confirm(\'Are you sure to delete this song?\')">
+				</div>
+			</div>
+		</form>';
 	}
+	return '';
 }
 
 // Copy songs from library files into 'songs' and 'remixes' database tables
-function decodeLibraryFile($dbLink, $libName) {
+function decodeLibraryFile(mysqli $dbLink, string $libName): void {
 	$songsPath = './data/songs/';
 	$libFileName = './data/library/' . $libName . '.gz';
 
 	// Check for a valid JSON string from GZIP file and get an array of songs
 	if (!file_exists($libFileName)) {
-		fancyDie('File "' . $libFileName . '" does not exist.');
+		fancyDie(manageError('File "' . $libFileName . '" does not exist.'));
 	}
 	$songssArr = json_decode(gzdecode(file_get_contents($libFileName)));
 	if (json_last_error() !== JSON_ERROR_NONE) {
-		fancyDie('File "' . $libFileName . '" has an error: ' . json_last_error_msg());
+		fancyDie(manageError('File "' . $libFileName . '" has an error: ' . json_last_error_msg()));
 	}
 
 	// Write each song into database
@@ -442,20 +460,20 @@ function decodeLibraryFile($dbLink, $libName) {
 }
 
 // Access to the database
-function getDBLink() {
+function getDBLink(): mysqli {
 	if (!function_exists('mysqli_connect')) {
-		fancyDie('MySQLi library is not installed');
+		fancyDie(manageError('MySQLi library is not installed'));
 	}
 	$dbLink = @mysqli_connect(BYTEBEAT_DBHOST, BYTEBEAT_DBUSERNAME, BYTEBEAT_DBPASSWORD, BYTEBEAT_DBNAME);
 	if (!$dbLink) {
-		fancyDie('Could not connect to database: ' . (is_object($dbLink) ? mysqli_error($dbLink) :
-			(($dbLinkError = mysqli_connect_error()) ? $dbLinkError : '(unknown error)')));
+		fancyDie(manageError('Could not connect to database: ' . (is_object($dbLink) ? mysqli_error($dbLink) :
+			(($dbLinkError = mysqli_connect_error()) ? $dbLinkError : '(unknown error)'))));
 	}
 	return $dbLink;
 }
 
 // Copy songs from library files into the database
-function filesToDatabase() {
+function filesToDatabase(): string {
 	$message = '';
 	$dbLink = getDBLink();
 
@@ -511,11 +529,11 @@ function filesToDatabase() {
 	$message .= 'Libraries are copied into the `songs` and `remixes` database tables.<br>';
 
 	mysqli_close($dbLink);
-	return $message . 'Success!';
+	return manageInfo($message . 'Success!');
 }
 
 // Create gzipped JSON file on query from database
-function makeLibraryFile($fileName, $songsByHash, $qResult) {
+function makeLibraryFile(string $fileName, array $songsByHash, mysqli_result $qResult): void {
 	$songsArr = array();
 	// Group songs by authors into arrays
 	while ($song = mysqli_fetch_assoc($qResult)) {
@@ -541,7 +559,7 @@ function makeLibraryFile($fileName, $songsByHash, $qResult) {
 }
 
 // Making gzipped JSON libraries and big-js songs files from database
-function databaseToFiles() {
+function databaseToFiles(): string {
 	$message = '';
 	$dbLink = getDBLink();
 	$pathLibrary = './data/library/';
@@ -752,11 +770,11 @@ function databaseToFiles() {
 		ORDER BY `date`, `author`, `id`;'));
 
 	mysqli_close($dbLink);
-	return $message . '"' . $pathLibrary . '*.gz" files created.<br>Success!';
+	return manageInfo($message . '"' . $pathLibrary . '*.gz" files created.<br>Success!');
 }
 
 // Request to add a song to the database
-function addSong($isEdit) {
+function addSong(bool $isEdit): string {
 	global $bytebeat_admins;
 	$dbLink = getDBLink();
 
@@ -888,12 +906,12 @@ function addSong($isEdit) {
 	}
 
 	mysqli_close($dbLink);
-	return 'Song ' . ($isEdit ? 'edited' : 'added') . ' successfully!<br>
-		' . managementRequest();
+	return manageInfo('Song ' . ($isEdit ? 'edited' : 'added') . ' successfully!') . '
+		' .managementRequest();
 }
 
 // Request to delete a song from the database
-function deleteSong() {
+function deleteSong(): string {
 	$dbLink = getDBLink();
 	$hash = $_POST['hash'];
 	mysqli_query($dbLink,
@@ -903,7 +921,7 @@ function deleteSong() {
 		'DELETE FROM `remixes`
 		WHERE `song` = "' . $hash . '";');
 	mysqli_close($dbLink);
-	return 'Song deleted!<br>
+	return manageInfo('Song deleted!') . '
 		' . managementRequest();
 }
 
@@ -911,7 +929,7 @@ function deleteSong() {
 
 // Settings initialization
 if (!file_exists('settings.php')) {
-	fancyDie('Please copy the file settings.default.php to settings.php');
+	fancyDie(manageError('Please copy the file settings.default.php to settings.php'));
 }
 require 'settings.php';
 if (BYTEBEAT_TIMEZONE != '') {
@@ -919,7 +937,7 @@ if (BYTEBEAT_TIMEZONE != '') {
 }
 global $bytebeat_admins;
 if (!isset($bytebeat_admins) || !is_array($bytebeat_admins) || !count($bytebeat_admins)) {
-	fancyDie('settings.php: $bytebeat_admins array must be configured.');
+	fancyDie(manageError('settings.php: $bytebeat_admins array must be configured.'));
 }
 
 // Checking authorization when trying to login
@@ -930,7 +948,8 @@ if (isset($_POST['managepassword'])) {
 		setcookie('bytebeat_access', '1', time() + 2592000, '/'); // 30 days
 		$_SESSION['bytebeat'] = $bytebeat_admins[$providedName];
 	} else {
-		fancyDie('Login failed!');
+		fancyDie(manageError('Login failed!') . '
+		' . showLoginPage());
 	}
 }
 
